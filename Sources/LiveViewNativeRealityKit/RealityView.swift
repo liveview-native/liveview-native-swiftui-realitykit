@@ -100,29 +100,7 @@ struct _RealityView<Root: RootRegistry>: View {
             for entity in try! RealityViewContentBuilder.buildChildren(of: element, in: context) {
                 content.add(entity)
             }
-        }/* update: {
-            let query = EntityQuery(where: .has(ElementNodeComponent.self))
-            var elementEntities = content.entities.filter({ $0.components.has(ElementNodeComponent.self) })
-            for child in element.children().filter({ !$0.attributes.contains(where: { $0.name.name == "template" }) }) {
-                guard let elementNode = child.asElement()
-                else { continue }
-                if let existingEntityIndex = elementEntities.firstIndex(where: { $0.components[ElementNodeComponent.self]!.element.id == child.id }) {
-                    // update entity
-                    let existingEntity = elementEntities.remove(at: existingEntityIndex)
-                    try? existingEntity.applyAttributes(from: elementNode, in: context)
-                    try? existingEntity.applyChildren(from: elementNode, in: context)
-                } else {
-                    // new entity
-                    let newEntities = try! RealityViewContentBuilder.build([child], in: context)
-                    for entity in newEntities {
-                        content.add(entity)
-                    }
-                }
-            }
-            for removedEntity in elementEntities {
-                content.remove(removedEntity)
-            }
-        }*/
+        }
         .onReceive($element) { id in
             self.updateStorage.updates.insert(id)
         }
