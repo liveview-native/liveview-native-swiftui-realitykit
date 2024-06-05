@@ -174,14 +174,12 @@ extension Entity {
             guard let childElement = childNode.asElement()
             else { continue }
             if let existingChildIndex = self.children.firstIndex(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id }) {
-                print("Existing child \(childElement.id) (\(childElement.tag))")
                 // update children that existed previously
                 let existingChild = self.children[existingChildIndex]
                 try! existingChild.applyAttributes(from: childElement, in: context)
                 try! existingChild.applyChildren(from: childElement, in: context)
                 previousChildren.remove(at: existingChildIndex)
             } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
-                print("New child \(childElement.id) (\(childElement.tag))")
                 // add new children
                 for child in try! RealityViewContentBuilder.build([childNode], in: context) {
                     self.addChild(child)

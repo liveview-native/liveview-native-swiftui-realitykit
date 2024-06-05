@@ -31,7 +31,6 @@ final class ElementNodeUpdateSystem<Root: RootRegistry>: System {
             guard let updatedEntity = elementNodes.first(where: { $0.components[ElementNodeComponent.self]?.element.id == updateId }),
                   let element = document[updateId].asElement()
             else { continue }
-            print("Updating \(updateId) (\(element.tag))")
             
             try! updatedEntity.applyAttributes(from: element, in: updateContext.context)
             try! updatedEntity.applyChildren(from: element, in: updateContext.context)
