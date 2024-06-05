@@ -9,6 +9,7 @@ import LiveViewNative
 import LiveViewNativeCore
 import SwiftUI
 import RealityKit
+import Combine
 import AudioToolbox
 
 final class ElementNodeUpdateSystem<Root: RootRegistry>: System {
@@ -76,9 +77,14 @@ struct _RealityView<Root: RootRegistry>: View {
     @State
     private var updateStorage = UpdateContextComponent<Root>.Storage()
     
+    @LiveElementIgnored
+    @State
+    private var subscriptions: [EventSubscription] = []
+    
     init() {
         ElementNodeComponent.registerComponent()
         PhoenixClickEventComponent.registerComponent()
+        PhysicsBodyChangeEventComponent.registerComponent()
         ElementNodeUpdateSystem<Root>.registerSystem()
     }
     
@@ -98,6 +104,60 @@ struct _RealityView<Root: RootRegistry>: View {
             content.add(updateContext)
             for entity in try! RealityViewContentBuilder.buildChildren(of: element, in: context) {
                 content.add(entity)
+            }
+            
+            self.subscriptions = [
+                content.subscribe(to: CollisionEvents.Began.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
+                    for entity in [collision.entityA, collision.entityB] {
+                        guard let event = entity.components[PhysicsBodyChangeEventComponent.self]?.event
+                        else { continue }
+                        
+                        let payload: [String:Any] = [
+                            "event": "began",
+                            "position": [collision.position.x, collision.position.y, collision.position.z],
+                            "impulse": collision.impulse,
+                            "impulseDirection": [collision.impulseDirection.x, collision.impulseDirection.y, collision.impulseDirection.z],
+                            "penetrationDistance": collision.penetrationDistance,
+                            "entityA": collision.entityA.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any,
+                            "entityB": collision.entityB.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any
+                        ]
+                        
+                        Task {
+                            try await liveContext.coordinator.pushEvent(
+                                type: "click",
+                                event: event,
+                                value: payload
+                            )
+                        }
+                    }
+                }
+            ]
+        } update: { content in
+            if self.updateStorage.updates.contains(self.$liveElement.element.id) {
+                guard let element: ElementNode = self.context.document?[self.$liveElement.element.id].asElement()
+                else { return }
+                
+                var previousChildren = Array(content.entities.filter({ !$0.components.has(UpdateContextComponent<Root>.self) }))
+                for childNode in element.children() {
+                    guard let childElement = childNode.asElement()
+                    else { continue }
+                    if let existingChildIndex = content.entities.firstIndex(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id }) {
+                        // update children that existed previously
+                        let existingChild = content.entities[existingChildIndex]
+                        try! existingChild.applyAttributes(from: childElement, in: context)
+                        try! existingChild.applyChildren(from: childElement, in: context)
+                        previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
+                    } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
+                        // add new children
+                        for child in try! RealityViewContentBuilder.build([childNode], in: context) {
+                            content.add(child)
+                        }
+                    }
+                }
+                // remove children that are no longer in the document
+                for child in previousChildren where !child.components.has(AsyncEntityComponent.self) {
+                    content.remove(child)
+                }
             }
         }
         .onReceive($element) { id in
@@ -120,11 +180,7 @@ struct _RealityView<Root: RootRegistry>: View {
                     
                     let tapLocation = value.convert(value.location3D, from: .local, to: .scene)
                     
-                    payload["_location"] = [
-                        "x": tapLocation.x,
-                        "y": tapLocation.y,
-                        "z": tapLocation.z
-                    ]
+                    payload["_location"] = [tapLocation.x, tapLocation.y, tapLocation.z]
                     
                     playClickSound()
                     
@@ -149,5 +205,9 @@ struct ElementNodeComponent: Component {
 }
 
 struct PhoenixClickEventComponent: Component {
+    let event: String
+}
+
+struct PhysicsBodyChangeEventComponent: Component {
     let event: String
 }

@@ -36,7 +36,12 @@ struct ComponentContentBuilder: ContentBuilder {
         case .groundingShadowComponent:
             return [GroundingShadowComponent(castsShadow: element.attributeBoolean(for: "castsShadow"))]
         case .physicsBodyComponent:
-            return [try! PhysicsBodyComponent(from: element, in: context)]
+            let physicsBody = try! PhysicsBodyComponent(from: element, in: context)
+            if let changeEvent = element.attributeValue(for: "phx-change") {
+                return [physicsBody, PhysicsBodyChangeEventComponent(event: changeEvent)]
+            } else {
+                return [physicsBody]
+            }
         case .collisionComponent:
             return [CollisionComponent(
                 shapes: try! Self.buildChildren(of: element, with: ShapeResourceBuilder.self, in: context),
@@ -232,8 +237,8 @@ extension PhysicsMaterialResource {
                 return .generate(staticFriction: staticFriction, dynamicFriction: dynamicFriction, restitution: restitution)
             } else {
                 return .generate(
-                    friction: (try? element.attributeValue(Float.self, for: "staticFriction")) ?? 0.8,
-                    restitution: (try? element.attributeValue(Float.self, for: "staticFriction")) ?? 0.8
+                    friction: (try? element.attributeValue(Float.self, for: "friction")) ?? 0.8,
+                    restitution: (try? element.attributeValue(Float.self, for: "restitution")) ?? 0.8
                 )
             }
         default:

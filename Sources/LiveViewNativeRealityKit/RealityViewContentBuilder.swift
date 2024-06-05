@@ -40,7 +40,10 @@ struct RealityViewContentBuilder: ContentBuilder {
         case .anchorEntity:
             entity = try? AnchorEntity(element.attributeValue(AnchoringComponent.Target.self, for: "target"))
         case .sceneReconstructionEntity:
-            entity = SceneReconstructionEntity(material: try? element.attributeValue(AnyMaterial.self, for: "material"))
+            entity = SceneReconstructionEntity(
+                material: try? element.attributeValue(AnyMaterial.self, for: "material"),
+                allowedInputTypes: (try? element.attributeValue(InputTargetComponent.InputType.self, for: "allowedInputTypes")) ?? .all
+            )
         case .handTrackingEntity:
             entity = HandTrackingEntity(from: element, in: context)
         }
@@ -101,7 +104,9 @@ extension Entity {
         
         if let click = element.attributeValue(for: "phx-click") {
             self.components.set(PhoenixClickEventComponent(event: click))
-            self.components.set(InputTargetComponent())
+            self.components.set(InputTargetComponent(
+                allowedInputTypes: (try? element.attributeValue(InputTargetComponent.InputType.self, for: "allowedInputTypes")) ?? .all
+            ))
         } else {
             self.components.remove(PhoenixClickEventComponent.self)
             self.components.remove(InputTargetComponent.self)
@@ -165,6 +170,8 @@ extension Entity {
             self.components.set(elementNodeComponent)
         }
         
+        guard !(self is SceneReconstructionEntity) else { return } // scene reconstruction creates its own child meshes
+        
         /// The list of children previously part of this element.
         ///
         /// We remove children from this list that are still present in the new element.
@@ -178,7 +185,7 @@ extension Entity {
                 let existingChild = self.children[existingChildIndex]
                 try! existingChild.applyAttributes(from: childElement, in: context)
                 try! existingChild.applyChildren(from: childElement, in: context)
-                previousChildren.remove(at: existingChildIndex)
+                previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
             } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
                 // add new children
                 for child in try! RealityViewContentBuilder.build([childNode], in: context) {
@@ -383,5 +390,23 @@ extension ElementNode {
             rotation: simd_quaternion((try? attributeValue(SIMD4<Float>.self, for: .init(namespace: namespace, name: "rotation"))) ?? SIMD4<Float>(0, 0, 0, 1)),
             translation: (try? attributeValue(SIMD3<Float>.self, for: .init(namespace: namespace, name: "translation"))) ?? SIMD3<Float>(x: 0, y: 0, z: 0)
         )
+    }
+}
+
+extension InputTargetComponent.InputType: AttributeDecodable {
+    public init(from attribute: Attribute?, on element: ElementNode) throws {
+        guard let value = attribute?.value
+        else { throw AttributeDecodingError.missingAttribute(Self.self) }
+        
+        switch value {
+        case "indirect":
+            self = .indirect
+        case "direct":
+            self = .direct
+        case "all":
+            self = .all
+        default:
+            throw AttributeDecodingError.badValue(Self.self)
+        }
     }
 }

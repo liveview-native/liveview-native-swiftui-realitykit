@@ -22,13 +22,11 @@ class HandTrackingEntity: Entity {
         .left: [:],
         .right: [:]
     ]
-    let material: (any Material)?
     
     let changePublisher: PassthroughSubject<HandAnchor, Never> = .init()
     var cancellable: AnyCancellable?
     
     required init() {
-        self.material = nil
         super.init()
         self.start()
     }
@@ -91,8 +89,8 @@ class HandTrackingEntity: Entity {
                 }
         }
         
-        self.material = try? element.attributeValue(AnyMaterial.self, for: "material")
         super.init()
+        
         for child in element.children() {
             guard let template = child.attributes.first(where: { $0.name == "template" })?.value
             else { continue }

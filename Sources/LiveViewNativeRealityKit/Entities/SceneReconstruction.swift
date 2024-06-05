@@ -17,15 +17,18 @@ class SceneReconstructionEntity: Entity {
     
     var meshEntities: [UUID:ModelEntity] = [:]
     let material: (any Material)?
+    let allowedInputTypes: InputTargetComponent.InputType
     
     required init() {
         self.material = nil
+        self.allowedInputTypes = .all
         super.init()
         self.start()
     }
     
-    init(material: (any Material)?) {
+    init(material: (any Material)?, allowedInputTypes: InputTargetComponent.InputType) {
         self.material = material
+        self.allowedInputTypes = allowedInputTypes
         super.init()
         self.start()
     }
@@ -78,7 +81,7 @@ class SceneReconstructionEntity: Entity {
                     }
                     entity.transform = Transform(matrix: meshAnchor.originFromAnchorTransform)
                     entity.collision = CollisionComponent(shapes: [shape], isStatic: true)
-                    entity.components.set(InputTargetComponent())
+                    entity.components.set(InputTargetComponent(allowedInputTypes: allowedInputTypes))
                     if self.components.has(PhoenixClickEventComponent.self) {
                         entity.components.set(self.components[PhoenixClickEventComponent.self]!)
                         entity.components.set(self.components[ElementNodeComponent.self]!)
@@ -95,6 +98,7 @@ class SceneReconstructionEntity: Entity {
                     if let mesh {
                         entity.model?.mesh = mesh
                     }
+                    entity.components.set(InputTargetComponent(allowedInputTypes: allowedInputTypes))
                 case .removed:
                     meshEntities[meshAnchor.id]?.removeFromParent()
                     meshEntities.removeValue(forKey: meshAnchor.id)
