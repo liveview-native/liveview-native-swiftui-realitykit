@@ -80,7 +80,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
                 entity = customEntity
             }
         } catch {
-            logger.log(level: .error, "Entity \(tag.rawValue) failed to build with: \(error)")
+            logger.error("Entity \(tag.rawValue) failed to build with: \(error)")
             return []
         }
         entity.components.set(ElementNodeComponent(element: element))
@@ -209,14 +209,22 @@ extension Entity {
             else { continue }
             if let existingChildIndex = self.children.firstIndex(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id }) {
                 // update children that existed previously
-                let existingChild = self.children[existingChildIndex]
-                try! existingChild.applyAttributes(from: childElement, in: context)
-                try! existingChild.applyChildren(from: childElement, in: context)
-                previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
+                do {
+                    let existingChild = self.children[existingChildIndex]
+                    try existingChild.applyAttributes(from: childElement, in: context)
+                    try existingChild.applyChildren(from: childElement, in: context)
+                    previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
+                } catch {
+                    logger.error("Entity \(childElement.tag) failed to update with: \(error)")
+                }
             } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
                 // add new children
-                for child in try! EntityContentBuilder<E, C>.build([childNode], in: context) {
-                    self.addChild(child)
+                do {
+                    for child in try EntityContentBuilder<E, C>.build([childNode], in: context) {
+                        self.addChild(child)
+                    }
+                } catch {
+                    logger.error("Entity \(childElement.tag) failed to build with: \(error)")
                 }
             }
         }

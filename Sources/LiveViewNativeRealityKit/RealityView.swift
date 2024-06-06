@@ -38,7 +38,7 @@ final class ElementNodeUpdateSystem<Root: RootRegistry, E: EntityRegistry, C: Co
                 try updatedEntity.applyAttributes(from: element, in: updateContext.context)
                 try updatedEntity.applyChildren(from: element, in: updateContext.context)
             } catch {
-                logger.log(level: .error, "Entity \(element.tag) failed to update with: \(error)")
+                logger.error("Entity \(element.tag) failed to update with: \(error)")
             }
         }
         
@@ -114,7 +114,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                     content.add(entity)
                 }
             } catch {
-                logger.log(level: .error, "Entities failed to build with: \(error)")
+                logger.error("Entities failed to build with: \(error)")
             }
             
             self.subscriptions = [
@@ -180,7 +180,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                             try existingChild.applyChildren(from: childElement, in: context)
                             previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
                         } catch {
-                            logger.log(level: .error, "Entity \(childElement.tag) failed to update with: \(error)")
+                            logger.error("Entity \(childElement.tag) failed to update with: \(error)")
                         }
                     } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
                         // add new children
@@ -189,7 +189,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                                 content.add(child)
                             }
                         } catch {
-                            logger.log(level: .error, "Entities failed to build with: \(error)")
+                            logger.error("Entities failed to build with: \(error)")
                         }
                     }
                 }

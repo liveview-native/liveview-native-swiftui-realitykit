@@ -81,7 +81,7 @@ struct ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry
                 return try Self.build([element.node], with: Components.self, in: context)
             }
         } catch {
-            logger.log(level: .error, "Component \(tag.rawValue) failed to build with: \(error)")
+            logger.error("Component \(tag.rawValue) failed to build with: \(error)")
             return []
         }
     }
