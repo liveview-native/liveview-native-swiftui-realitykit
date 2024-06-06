@@ -50,7 +50,7 @@ struct UpdateContextComponent<Root: RootRegistry>: Component {
         set { storage.updates = newValue }
     }
     let document: Document?
-    let context: RealityViewContentBuilder.Context<Root>
+    let context: EntityContentBuilder.Context<Root>
     
     final class Storage {
         var updates: Set<NodeRef> = []
@@ -68,7 +68,7 @@ struct _RealityView<Root: RootRegistry>: View {
     private var liveContext
     
     @LiveElementIgnored
-    @ContentBuilderContext<Root, RealityViewContentBuilder>
+    @ContentBuilderContext<Root, EntityContentBuilder>
     private var context
     
     private var audibleClicks: Bool = false
@@ -102,7 +102,7 @@ struct _RealityView<Root: RootRegistry>: View {
             let updateContext = Entity()
             updateContext.components.set(UpdateContextComponent<Root>(storage: self.updateStorage, document: context.document, context: context))
             content.add(updateContext)
-            for entity in try! RealityViewContentBuilder.buildChildren(of: element, in: context) {
+            for entity in try! EntityContentBuilder.buildChildren(of: element, in: context) {
                 content.add(entity)
             }
             
@@ -169,7 +169,7 @@ struct _RealityView<Root: RootRegistry>: View {
                         previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
                     } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
                         // add new children
-                        for child in try! RealityViewContentBuilder.build([childNode], in: context) {
+                        for child in try! EntityContentBuilder.build([childNode], in: context) {
                             content.add(child)
                         }
                     }

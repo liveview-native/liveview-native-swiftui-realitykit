@@ -95,7 +95,7 @@ extension OrbitAnimation {
         self.init(
             name: element.attributeValue(for: "name") ?? "",
             duration: (try? element.attributeValue(Double.self, for: "duration")) ?? 1,
-            axis: (try? element.simd3(for: "exis")) ?? .init(x: 0.0, y: 1.0, z: 0.0),
+            axis: (try? element.attributeValue(SIMD3<Float>.self, for: "axis")) ?? .init(x: 0.0, y: 1.0, z: 0.0),
             startTransform: (try? element.transform(for: "startTransform")) ?? .identity,
             spinClockwise: element.attributeBoolean(for: "spinClockwise"),
             orientToPath: element.attributeBoolean(for: "orientToPath"),

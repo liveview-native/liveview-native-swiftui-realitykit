@@ -14,7 +14,7 @@ final class AsyncEntity: Entity {
     
     init(
         from element: ElementNode,
-        in context: RealityViewContentBuilder.Context<some RootRegistry>
+        in context: EntityContentBuilder.Context<some RootRegistry>
     ) {
         AsyncEntityComponent.registerComponent()
         
@@ -43,7 +43,7 @@ final class AsyncEntity: Entity {
         super.init()
     }
     
-    func updateResolvedEntity(with element: ElementNode, in context: RealityViewContentBuilder.Context<some RootRegistry>) throws {
+    func updateResolvedEntity(with element: ElementNode, in context: EntityContentBuilder.Context<some RootRegistry>) throws {
         guard let entity = self.children.first else { return }
         var elementNodeComponent = self.components[ElementNodeComponent.self]
         if let animationName = element.attributeValue(for: "playAnimation") {
@@ -54,7 +54,7 @@ final class AsyncEntity: Entity {
                 controller: entity.playAnimation(
                     try AnimationResource.generate(
                         with: AnimationGroup(
-                            group: RealityViewContentBuilder.buildChildren(
+                            group: EntityContentBuilder.buildChildren(
                                 of: element,
                                 forTemplate: animationName,
                                 with: AnimationContentBuilder.self,

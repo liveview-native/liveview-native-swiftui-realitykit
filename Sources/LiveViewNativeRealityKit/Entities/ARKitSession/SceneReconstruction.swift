@@ -5,6 +5,7 @@
 //  Created by Carson Katri on 5/23/24.
 //
 
+import LiveViewNative
 import ARKit
 import RealityKit
 import OSLog
@@ -26,9 +27,9 @@ class SceneReconstructionEntity: Entity {
         self.start()
     }
     
-    init(material: (any Material)?, allowedInputTypes: InputTargetComponent.InputType) {
-        self.material = material
-        self.allowedInputTypes = allowedInputTypes
+    init(from element: ElementNode, in context: EntityContentBuilder.Context<some RootRegistry>) throws {
+        self.material = try? element.attributeValue(AnyMaterial.self, for: "material")
+        self.allowedInputTypes = (try? element.attributeValue(InputTargetComponent.InputType.self, for: "allowedInputTypes")) ?? .all
         super.init()
         self.start()
     }

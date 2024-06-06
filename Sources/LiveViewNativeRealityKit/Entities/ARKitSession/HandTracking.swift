@@ -33,7 +33,7 @@ class HandTrackingEntity: Entity {
     
     init<R: RootRegistry>(
         from element: ElementNode,
-        in context: RealityViewContentBuilder.Context<R>
+        in context: EntityContentBuilder.Context<R>
     ) {
         if let changeEvent = element.attributeValue(for: "phx-change") {
             let chiralityFilter: HandAnchor.Chirality? = switch element.attributeValue(for: "chirality") {
@@ -108,7 +108,7 @@ class HandTrackingEntity: Entity {
             guard let jointName = HandSkeleton.JointName.allCases.first(where: { $0.description == String(fingerReference.last!) })
             else { continue }
             
-            let entities = try! RealityViewContentBuilder.build([child], in: context)
+            let entities = try! EntityContentBuilder.build([child], in: context)
             fingerEntities[chirality]![jointName] = entities
             for entity in entities {
                 addChild(entity)
