@@ -130,6 +130,26 @@ struct _RealityView<Root: RootRegistry>: View {
                             )
                         }
                     }
+                },
+                content.subscribe(to: CollisionEvents.Ended.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
+                    for entity in [collision.entityA, collision.entityB] {
+                        guard let event = entity.components[PhysicsBodyChangeEventComponent.self]?.event
+                        else { continue }
+                        
+                        let payload: [String:Any] = [
+                            "event": "ended",
+                            "entityA": collision.entityA.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any,
+                            "entityB": collision.entityB.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any
+                        ]
+                        
+                        Task {
+                            try await liveContext.coordinator.pushEvent(
+                                type: "click",
+                                event: event,
+                                value: payload
+                            )
+                        }
+                    }
                 }
             ]
         } update: { content in
