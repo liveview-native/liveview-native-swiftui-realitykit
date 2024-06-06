@@ -11,7 +11,7 @@ import Foundation
 import RealityKit
 
 extension AccessibilityComponent {
-    init(from element: ElementNode, in context: ComponentContentBuilder.Context<some RootRegistry>) throws {
+    init(from element: ElementNode, in context: ComponentContentBuilder<some ComponentRegistry>.Context<some RootRegistry>) throws {
         self.init()
         
         self.label = element.attributeValue(for: "label").flatMap(LocalizedStringResource.init(stringLiteral:))

@@ -27,7 +27,10 @@ class SceneReconstructionEntity: Entity {
         self.start()
     }
     
-    init(from element: ElementNode, in context: EntityContentBuilder.Context<some RootRegistry>) throws {
+    init<E: EntityRegistry, C: ComponentRegistry>(
+        from element: ElementNode,
+        in context: EntityContentBuilder<E, C>.Context<some RootRegistry>
+    ) throws {
         self.material = try? element.attributeValue(AnyMaterial.self, for: "material")
         self.allowedInputTypes = (try? element.attributeValue(InputTargetComponent.InputType.self, for: "allowedInputTypes")) ?? .all
         super.init()

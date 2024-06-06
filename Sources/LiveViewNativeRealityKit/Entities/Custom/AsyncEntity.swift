@@ -12,9 +12,9 @@ import LiveViewNative
 final class AsyncEntity: Entity {
     var setupTask: Task<(), Error>? = nil
     
-    init(
+    init<E: EntityRegistry, C: ComponentRegistry>(
         from element: ElementNode,
-        in context: EntityContentBuilder.Context<some RootRegistry>
+        in context: EntityContentBuilder<E, C>.Context<some RootRegistry>
     ) {
         AsyncEntityComponent.registerComponent()
         
@@ -43,7 +43,10 @@ final class AsyncEntity: Entity {
         super.init()
     }
     
-    func updateResolvedEntity(with element: ElementNode, in context: EntityContentBuilder.Context<some RootRegistry>) throws {
+    func updateResolvedEntity<E: EntityRegistry, C: ComponentRegistry>(
+        with element: ElementNode,
+        in context: EntityContentBuilder<E, C>.Context<some RootRegistry>
+    ) throws {
         guard let entity = self.children.first else { return }
         var elementNodeComponent = self.components[ElementNodeComponent.self]
         if let animationName = element.attributeValue(for: "playAnimation") {
@@ -54,7 +57,7 @@ final class AsyncEntity: Entity {
                 controller: entity.playAnimation(
                     try AnimationResource.generate(
                         with: AnimationGroup(
-                            group: EntityContentBuilder.buildChildren(
+                            group: EntityContentBuilder<E, C>.buildChildren(
                                 of: element,
                                 forTemplate: animationName,
                                 with: AnimationContentBuilder.self,

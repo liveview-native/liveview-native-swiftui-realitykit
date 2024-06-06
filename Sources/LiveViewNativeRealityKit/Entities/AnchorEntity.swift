@@ -9,7 +9,10 @@ import LiveViewNative
 import RealityKit
 
 extension AnchorEntity {
-    convenience init(from element: ElementNode, in context: EntityContentBuilder.Context<some RootRegistry>) throws {
+    convenience init<E: EntityRegistry, C: ComponentRegistry>(
+        from element: ElementNode,
+        in context: EntityContentBuilder<E, C>.Context<some RootRegistry>
+    ) throws {
         if let world = try? element.attributeValue(SIMD3<Float>.self, for: "world") {
             self.init(world: world)
         } else {

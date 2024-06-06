@@ -13,43 +13,74 @@ import OSLog
 
 private let logger = Logger(subsystem: "LiveViewNativeRealityKit", category: "EntityContentBuilder")
 
-struct EntityContentBuilder: ContentBuilder {
-    enum TagName: String {
-        case group = "Group"
-        case entity = "Entity"
-        case modelEntity = "ModelEntity"
-        case anchorEntity = "AnchorEntity"
+struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegistry>: EntityRegistry {
+    enum TagName: RawRepresentable {
+        case builtin(Builtin)
+        case custom(Entities.TagName)
         
-        case sceneReconstructionProvider = "SceneReconstructionProvider"
-        case handTrackingProvider = "HandTrackingProvider"
+        typealias RawValue = String
+        
+        enum Builtin: String {
+            case group = "Group"
+            case entity = "Entity"
+            case modelEntity = "ModelEntity"
+            case anchorEntity = "AnchorEntity"
+            
+            case sceneReconstructionProvider = "SceneReconstructionProvider"
+            case handTrackingProvider = "HandTrackingProvider"
+        }
+        
+        init?(rawValue: RawValue) {
+            if let builtin = Builtin(rawValue: rawValue) {
+                self = .builtin(builtin)
+            } else if let custom = Entities.TagName.init(rawValue: rawValue) {
+                self = .custom(custom)
+            } else {
+                return nil
+            }
+        }
+        
+        var rawValue: RawValue {
+            switch self {
+            case .builtin(let builtin):
+                builtin.rawValue
+            case .custom(let tagName):
+                tagName.rawValue
+            }
+        }
     }
     
-    typealias Content = [Entity]
-    
-    static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> [Entity] {
+    static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> Content {
         let entity: Entity
         do {
             switch tag {
-            case .group:
-                guard let children = try? Self.buildChildren(of: element, in: context) else { return [] }
-                return children
-            case .entity:
-                if element.attribute(named: "url") != nil {
-                    entity = AsyncEntity(from: element, in: context)
-                } else {
-                    entity = Entity()
+            case let .builtin(builtin):
+                switch builtin {
+                case .group:
+                    guard let children = try? Self.buildChildren(of: element, in: context) else { return [] }
+                    return children
+                case .entity:
+                    if element.attribute(named: "url") != nil {
+                        entity = AsyncEntity(from: element, in: context)
+                    } else {
+                        entity = Entity()
+                    }
+                case .modelEntity:
+                    entity = try ModelEntity(from: element, in: context)
+                case .anchorEntity:
+                    entity = try AnchorEntity(from: element, in: context)
+                case .sceneReconstructionProvider:
+                    entity = try SceneReconstructionEntity(from: element, in: context)
+                case .handTrackingProvider:
+                    entity = HandTrackingEntity(from: element, in: context)
                 }
-            case .modelEntity:
-                entity = try ModelEntity(from: element, in: context)
-            case .anchorEntity:
-                entity = try AnchorEntity(from: element, in: context)
-            case .sceneReconstructionProvider:
-                entity = try SceneReconstructionEntity(from: element, in: context)
-            case .handTrackingProvider:
-                entity = HandTrackingEntity(from: element, in: context)
+            case .custom:
+                guard let customEntity = (try Self.build([element.node], with: Entities.self, in: context)).first
+                else { return [] }
+                entity = customEntity
             }
         } catch {
-            logger.log(level: .error, "Entity \(tag.rawValue) failed to build with: \(error.localizedDescription)")
+            logger.log(level: .error, "Entity \(tag.rawValue) failed to build with: \(error)")
             return []
         }
         entity.components.set(ElementNodeComponent(element: element))
@@ -57,20 +88,12 @@ struct EntityContentBuilder: ContentBuilder {
         try! entity.applyChildren(from: element, in: context)
         return [entity]
     }
-    
-    static func empty() -> [Entity] {
-        []
-    }
-    
-    static func reduce(accumulated: [Entity], next: [Entity]) -> [Entity] {
-        accumulated + next
-    }
 }
 
 extension Entity {
-    func applyAttributes<R: RootRegistry>(
+    func applyAttributes<R: RootRegistry, E: EntityRegistry, C: ComponentRegistry>(
         from element: ElementNode,
-        in context: EntityContentBuilder.Context<R>
+        in context: EntityContentBuilder<E, C>.Context<R>
     ) throws {
         var elementNodeComponent = self.components[ElementNodeComponent.self]
         
@@ -130,7 +153,7 @@ extension Entity {
                 controller: self.playAnimation(
                     try AnimationResource.generate(
                         with: AnimationGroup(
-                            group: EntityContentBuilder.buildChildren(
+                            group: EntityContentBuilder<E, C>.buildChildren(
                                 of: element,
                                 forTemplate: animationName,
                                 with: AnimationContentBuilder.self,
@@ -154,14 +177,14 @@ extension Entity {
         }
     }
     
-    func applyChildren<R: RootRegistry>(
+    func applyChildren<R: RootRegistry, E: EntityRegistry, C: ComponentRegistry>(
         from element: ElementNode,
-        in context: EntityContentBuilder.Context<R>
+        in context: EntityContentBuilder<E, C>.Context<R>
     ) throws {
         var elementNodeComponent = self.components[ElementNodeComponent.self]
         var componentTypes = elementNodeComponent?.componentTypes ?? []
         var newComponentTypes = [any Component.Type]()
-        for component in try EntityContentBuilder.buildChildren(of: element, forTemplate: "components", with: ComponentContentBuilder.self, in: context) {
+        for component in try EntityContentBuilder<E, C>.buildChildren(of: element, forTemplate: "components", with: C.self, in: context) {
             self.components.set(component)
             componentTypes.removeAll(where: { $0 == type(of: component) })
             newComponentTypes.append(type(of: component))
@@ -192,7 +215,7 @@ extension Entity {
                 previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
             } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
                 // add new children
-                for child in try! EntityContentBuilder.build([childNode], in: context) {
+                for child in try! EntityContentBuilder<E, C>.build([childNode], in: context) {
                     self.addChild(child)
                 }
             }

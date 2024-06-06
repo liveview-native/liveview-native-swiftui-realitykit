@@ -11,9 +11,10 @@ import SwiftUI
 import RealityKit
 import Combine
 import AudioToolbox
+import OSLog
 
-final class ElementNodeUpdateSystem<Root: RootRegistry>: System {
-    let updateContextQuery = EntityQuery(where: .has(UpdateContextComponent<Root>.self))
+final class ElementNodeUpdateSystem<Root: RootRegistry, E: EntityRegistry, C: ComponentRegistry>: System {
+    let updateContextQuery = EntityQuery(where: .has(UpdateContextComponent<Root, E, C>.self))
     let elementNodeQuery = EntityQuery(where: .has(ElementNodeComponent.self))
     
     init(scene: RealityKit.Scene) {}
@@ -21,7 +22,7 @@ final class ElementNodeUpdateSystem<Root: RootRegistry>: System {
     func update(context: SceneUpdateContext) {
         var updateContextEntities = context.entities(matching: updateContextQuery, updatingSystemWhen: .rendering).makeIterator()
         guard let updateContextEntity = updateContextEntities.next(),
-              var updateContext = updateContextEntity.components[UpdateContextComponent<Root>.self],
+              var updateContext = updateContextEntity.components[UpdateContextComponent<Root, E, C>.self],
               !updateContext.updates.isEmpty,
               let document = updateContext.document
         else { return }
@@ -33,8 +34,12 @@ final class ElementNodeUpdateSystem<Root: RootRegistry>: System {
                   let element = document[updateId].asElement()
             else { continue }
             
-            try! updatedEntity.applyAttributes(from: element, in: updateContext.context)
-            try! updatedEntity.applyChildren(from: element, in: updateContext.context)
+            do {
+                try updatedEntity.applyAttributes(from: element, in: updateContext.context)
+                try updatedEntity.applyChildren(from: element, in: updateContext.context)
+            } catch {
+                logger.log(level: .error, "Entity \(element.tag) failed to update with: \(error)")
+            }
         }
         
         // clear pending updates
@@ -43,22 +48,24 @@ final class ElementNodeUpdateSystem<Root: RootRegistry>: System {
     }
 }
 
-struct UpdateContextComponent<Root: RootRegistry>: Component {
+struct UpdateContextComponent<Root: RootRegistry, E: EntityRegistry, C: ComponentRegistry>: Component {
     var storage: Storage
     var updates: Set<NodeRef> {
         get { storage.updates }
         set { storage.updates = newValue }
     }
     let document: Document?
-    let context: EntityContentBuilder.Context<Root>
+    let context: EntityContentBuilder<E, C>.Context<Root>
     
     final class Storage {
         var updates: Set<NodeRef> = []
     }
 }
 
+private let logger = Logger(subsystem: "LiveViewNativeRealityKit", category: "RealityView")
+
 @LiveElement
-struct _RealityView<Root: RootRegistry>: View {
+struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: ComponentRegistry>: View {
     @LiveElementIgnored
     @ObservedElement(observeChildren: true)
     private var element
@@ -68,14 +75,14 @@ struct _RealityView<Root: RootRegistry>: View {
     private var liveContext
     
     @LiveElementIgnored
-    @ContentBuilderContext<Root, EntityContentBuilder>
+    @ContentBuilderContext<Root, EntityContentBuilder<Entities, Components>>
     private var context
     
     private var audibleClicks: Bool = false
     
     @LiveElementIgnored
     @State
-    private var updateStorage = UpdateContextComponent<Root>.Storage()
+    private var updateStorage = UpdateContextComponent<Root, Entities, Components>.Storage()
     
     @LiveElementIgnored
     @State
@@ -85,7 +92,7 @@ struct _RealityView<Root: RootRegistry>: View {
         ElementNodeComponent.registerComponent()
         PhoenixClickEventComponent.registerComponent()
         PhysicsBodyChangeEventComponent.registerComponent()
-        ElementNodeUpdateSystem<Root>.registerSystem()
+        ElementNodeUpdateSystem<Root, Entities, Components>.registerSystem()
     }
     
     private func playClickSound() {
@@ -100,10 +107,14 @@ struct _RealityView<Root: RootRegistry>: View {
     var body: some View {
         RealityView { content in
             let updateContext = Entity()
-            updateContext.components.set(UpdateContextComponent<Root>(storage: self.updateStorage, document: context.document, context: context))
+            updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(storage: self.updateStorage, document: context.document, context: context))
             content.add(updateContext)
-            for entity in try! EntityContentBuilder.buildChildren(of: element, in: context) {
-                content.add(entity)
+            do {
+                for entity in try EntityContentBuilder<Entities, Components>.buildChildren(of: element, in: context) {
+                    content.add(entity)
+                }
+            } catch {
+                logger.log(level: .error, "Entities failed to build with: \(error)")
             }
             
             self.subscriptions = [
@@ -157,20 +168,28 @@ struct _RealityView<Root: RootRegistry>: View {
                 guard let element: ElementNode = self.context.document?[self.$liveElement.element.id].asElement()
                 else { return }
                 
-                var previousChildren = Array(content.entities.filter({ !$0.components.has(UpdateContextComponent<Root>.self) }))
+                var previousChildren = Array(content.entities.filter({ !$0.components.has(UpdateContextComponent<Root, Entities, Components>.self) }))
                 for childNode in element.children() {
                     guard let childElement = childNode.asElement()
                     else { continue }
                     if let existingChildIndex = content.entities.firstIndex(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id }) {
                         // update children that existed previously
-                        let existingChild = content.entities[existingChildIndex]
-                        try! existingChild.applyAttributes(from: childElement, in: context)
-                        try! existingChild.applyChildren(from: childElement, in: context)
-                        previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
+                        do {
+                            let existingChild = content.entities[existingChildIndex]
+                            try existingChild.applyAttributes(from: childElement, in: context)
+                            try existingChild.applyChildren(from: childElement, in: context)
+                            previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
+                        } catch {
+                            logger.log(level: .error, "Entity \(childElement.tag) failed to update with: \(error)")
+                        }
                     } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
                         // add new children
-                        for child in try! EntityContentBuilder.build([childNode], in: context) {
-                            content.add(child)
+                        do {
+                            for child in try EntityContentBuilder<Entities, Components>.build([childNode], in: context) {
+                                content.add(child)
+                            }
+                        } catch {
+                            logger.log(level: .error, "Entities failed to build with: \(error)")
                         }
                     }
                 }

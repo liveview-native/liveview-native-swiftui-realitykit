@@ -10,9 +10,9 @@ import LiveViewNativeCore
 import RealityKit
 
 extension ModelEntity {
-    convenience init<R: RootRegistry>(
+    convenience init<R: RootRegistry, E: EntityRegistry, C: ComponentRegistry>(
         from element: ElementNode,
-        in context: EntityContentBuilder.Context<R>
+        in context: EntityContentBuilder<E, C>.Context<R>
     ) throws {
         self.init(
             mesh: try MeshResource.generate(from: element.attribute(named: "mesh"), on: element),

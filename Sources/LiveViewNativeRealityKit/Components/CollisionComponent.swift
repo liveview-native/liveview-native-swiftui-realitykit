@@ -11,8 +11,8 @@ import LiveViewNativeCore
 import RealityKit
 
 extension CollisionComponent {
-    init(from element: ElementNode, in context: ComponentContentBuilder.Context<some RootRegistry>) throws {
-        let shapes = try ComponentContentBuilder.buildChildren(of: element, with: ShapeResourceContentBuilder.self, in: context)
+    init<C: ComponentRegistry>(from element: ElementNode, in context: ComponentContentBuilder<C>.Context<some RootRegistry>) throws {
+        let shapes = try ComponentContentBuilder<C>.buildChildren(of: element, with: ShapeResourceContentBuilder.self, in: context)
         let isStatic = element.attributeBoolean(for: "isStatic")
         let filter = try? element.attributeValue(CollisionFilter.self, for: "filter")
         let mode = try? element.attributeValue(Mode.self, for: "mode")
