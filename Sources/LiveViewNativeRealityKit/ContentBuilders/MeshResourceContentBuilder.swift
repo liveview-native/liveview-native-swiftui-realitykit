@@ -26,25 +26,42 @@ struct MeshResourceContentBuilder: ContentBuilder {
     typealias Content = [MeshResource]
     
     static func lookup<R>(_ tag: TagName, element: ElementNode, context: Context<R>) -> Content where R : RootRegistry {
+        let mesh: MeshResource
         do {
             switch tag {
             case .group:
                 return try Self.buildChildren(of: element, in: context)
             case .box:
-                return [try MeshResource.generateBox(from: element)]
+                mesh = try MeshResource.generateBox(from: element)
             case .sphere:
-                return [try MeshResource.generateSphere(from: element)]
+                mesh = try MeshResource.generateSphere(from: element)
             case .cone:
-                return [try MeshResource.generateCone(from: element)]
+                mesh = try MeshResource.generateCone(from: element)
             case .cylinder:
-                return [try MeshResource.generateCylinder(from: element)]
+                mesh = try MeshResource.generateCylinder(from: element)
             case .plane:
-                return [try MeshResource.generatePlane(from: element)]
+                mesh = try MeshResource.generatePlane(from: element)
             }
         } catch {
             logger.error("MeshResource \(element.tag) failed to build with: \(error)")
             return []
         }
+        
+        if let materialIndex = try? element.attributeValue(Int.self, for: "materialIndex") {
+            var contents = mesh.contents
+            contents.models = MeshModelCollection(mesh.contents.models.map({
+                var model = $0
+                model.parts = MeshPartCollection(model.parts.map({
+                    var part = $0
+                    part.materialIndex = materialIndex
+                    return part
+                }))
+                return model
+            }))
+            try! mesh.replace(with: contents)
+        }
+        
+        return [mesh]
     }
     
     static func empty() -> Content {

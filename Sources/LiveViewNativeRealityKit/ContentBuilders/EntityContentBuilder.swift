@@ -79,14 +79,14 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
                 else { return [] }
                 entity = customEntity
             }
+            entity.components.set(ElementNodeComponent(element: element))
+            try entity.applyAttributes(from: element, in: context)
+            try entity.applyChildren(from: element, in: context)
+            return [entity]
         } catch {
             logger.error("Entity \(tag.rawValue) failed to build with: \(error)")
             return []
         }
-        entity.components.set(ElementNodeComponent(element: element))
-        try! entity.applyAttributes(from: element, in: context)
-        try! entity.applyChildren(from: element, in: context)
-        return [entity]
     }
 }
 
@@ -140,7 +140,7 @@ extension Entity {
         }
         
         if let modelEntity = self as? ModelEntity {
-            modelEntity.model?.materials = [try element.attributeValue(AnyMaterial.self, for: "material")]
+            try modelEntity.applyModelEntityAttributes(from: element, in: context)
         }
         
         if let animationName = element.attributeValue(for: "playAnimation"),

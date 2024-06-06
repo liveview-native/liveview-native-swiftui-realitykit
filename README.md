@@ -36,15 +36,18 @@ Include 3D entities within the `RealityView` to display models, fetch hand track
 ```heex
 <RealityView>
   <ModelEntity
-    material="simple"
-    material:color="system-red"
-
     transform:translation={[0, 0.15, 0]}
   >
     <Box
       template="mesh"
       size={0.3}
     />
+    
+    <SimpleMaterial
+      template="materials"
+      color="system-red"
+    />
+    
     <Group template="components">
       <OpacityComponent opacity={0.75} />
       <GroundingShadowComponent castsShadow />

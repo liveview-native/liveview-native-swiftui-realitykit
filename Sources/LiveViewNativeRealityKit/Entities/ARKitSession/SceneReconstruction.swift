@@ -17,11 +17,11 @@ class SceneReconstructionEntity: Entity {
     let provider = SceneReconstructionProvider()
     
     var meshEntities: [UUID:ModelEntity] = [:]
-    let material: (any Material)?
+    let materials: [any Material]
     let allowedInputTypes: InputTargetComponent.InputType
     
     required init() {
-        self.material = nil
+        self.materials = []
         self.allowedInputTypes = .all
         super.init()
         self.start()
@@ -31,7 +31,7 @@ class SceneReconstructionEntity: Entity {
         from element: ElementNode,
         in context: EntityContentBuilder<E, C>.Context<some RootRegistry>
     ) throws {
-        self.material = try? element.attributeValue(AnyMaterial.self, for: "material")
+        self.materials = try EntityContentBuilder<E, C>.buildChildren(of: element, forTemplate: "materials", with: MaterialContentBuilder.self, in: context)
         self.allowedInputTypes = (try? element.attributeValue(InputTargetComponent.InputType.self, for: "allowedInputTypes")) ?? .all
         super.init()
         self.start()
@@ -54,7 +54,7 @@ class SceneReconstructionEntity: Entity {
                 guard let shape = try? await ShapeResource.generateStaticMesh(from: meshAnchor) else { continue }
                 let mesh: MeshResource?
                 
-                if material != nil {
+                if let material = self.materials.first {
                     var descriptor = MeshDescriptor()
                     let posValues = meshAnchor.geometry.vertices.asSIMD3(ofType: Float.self)
                     descriptor.positions = .init(posValues)
@@ -76,7 +76,7 @@ class SceneReconstructionEntity: Entity {
                 switch update.event {
                 case .added:
                     let entity: ModelEntity
-                    if let material,
+                    if let material = self.materials.first,
                        let mesh
                     {
                         entity = ModelEntity(mesh: mesh, materials: [material])
