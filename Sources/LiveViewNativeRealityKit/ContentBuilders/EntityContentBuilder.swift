@@ -60,7 +60,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
                     guard let children = try? Self.buildChildren(of: element, in: context) else { return [] }
                     return children
                 case .entity:
-                    if element.attribute(named: "url") != nil {
+                    if element.attribute(named: "url") != nil || element.attribute(named: "named") != nil {
                         entity = AsyncEntity(from: element, in: context)
                     } else {
                         entity = Entity()

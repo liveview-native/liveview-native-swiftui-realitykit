@@ -28,13 +28,23 @@ final class AsyncEntity: Entity {
                 
                 do {
                     let entity = try await Entity(contentsOf: correctedExtensionURL)
-                    entity.components.set(AsyncEntityComponent(url: url))
+                    entity.components.set(AsyncEntityComponent.remote(url))
                     self?.addChild(entity)
                     
                     try self?.updateResolvedEntity(with: element, in: context)
                 }
                 
                 try FileManager.default.removeItem(at: correctedExtensionURL)
+            }
+        } else if let named = element.attributeValue(for: "named") {
+            setupTask = Task { [weak self] in
+                do {
+                    let entity = try await Entity(named: named)
+                    entity.components.set(AsyncEntityComponent.named(named))
+                    self?.addChild(entity)
+                    
+                    try self?.updateResolvedEntity(with: element, in: context)
+                }
             }
         }
     }
@@ -77,6 +87,7 @@ final class AsyncEntity: Entity {
     }
 }
 
-struct AsyncEntityComponent: Component {
-    let url: URL
+enum AsyncEntityComponent: Component {
+    case remote(URL)
+    case named(String)
 }
