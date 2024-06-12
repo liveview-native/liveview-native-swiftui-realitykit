@@ -75,7 +75,7 @@ struct ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry
                 case .collisionComponent:
                     return [try CollisionComponent(from: element, in: context)]
                 case .hoverEffectComponent:
-                    return [HoverEffectComponent()]
+                    return [try HoverEffectComponent(from: element, in: context)]
                 }
             case .custom:
                 return try Self.build([element.node], with: Components.self, in: context)
