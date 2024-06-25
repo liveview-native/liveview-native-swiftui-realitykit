@@ -10,7 +10,7 @@ import RealityKit
 import SwiftUI
 
 extension HoverEffectComponent {
-    init(from element: ElementNode, in context: ComponentContentBuilder<some ComponentRegistry>.Context<some RootRegistry>) throws {
+    init(from element: ElementNode, in context: _ComponentContentBuilder<some ComponentRegistry>.Context<some RootRegistry>) throws {
         if #available(visionOS 2, *) {
             switch element.attributeValue(for: "hoverEffect") {
             case "spotlight":

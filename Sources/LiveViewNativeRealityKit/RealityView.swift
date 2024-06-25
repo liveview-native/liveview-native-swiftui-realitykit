@@ -146,22 +146,6 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
     
     var body: some View {
         RealityView { content, attachments in
-            let updateContext = Entity()
-            updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(
-                storage: self.updateStorage,
-                document: context.document,
-                context: context,
-                attachments: attachments
-            ))
-            content.add(updateContext)
-            do {
-                for entity in try EntityContentBuilder<Entities, Components>.buildChildren(of: element, in: context) {
-                    content.add(entity)
-                }
-            } catch {
-                logger.error("Entities failed to build with: \(error)")
-            }
-            
             self.subscriptions = [
                 content.subscribe(to: CollisionEvents.Began.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
                     for entity in [collision.entityA, collision.entityB] {
@@ -208,6 +192,17 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                     }
                 }
             ]
+            
+            let updateContext = Entity()
+            updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(storage: self.updateStorage, document: context.document, context: context, attachments: attachments))
+            content.add(updateContext)
+            do {
+                for entity in try EntityContentBuilder<Entities, Components>.buildChildren(of: element, in: context) {
+                    content.add(entity)
+                }
+            } catch {
+                logger.error("Entities failed to build with: \(error)")
+            }
         } update: { content, attachments in
             if self.updateStorage.updates.contains(self.$liveElement.element.id) {
                 guard let element: ElementNode = self.context.document?[self.$liveElement.element.id].asElement()
