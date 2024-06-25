@@ -9,7 +9,7 @@ import LiveViewNative
 import RealityKit
 
 extension OpacityComponent {
-    init(from element: ElementNode, in context: ComponentContentBuilder<some ComponentRegistry>.Context<some RootRegistry>) throws {
+    init(from element: ElementNode, in context: _ComponentContentBuilder<some ComponentRegistry>.Context<some RootRegistry>) throws {
         self.init(
             opacity: (try? element.attributeValue(Float.self, for: "opacity")) ?? 1
         )

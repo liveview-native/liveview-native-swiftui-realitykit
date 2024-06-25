@@ -10,10 +10,10 @@ import LiveViewNativeCore
 import RealityKit
 
 extension PhysicsBodyComponent {
-    init<C: ComponentRegistry>(from element: ElementNode, in context: ComponentContentBuilder<C>.Context<some RootRegistry>) throws {
+    init<C: ComponentRegistry>(from element: ElementNode, in context: _ComponentContentBuilder<C>.Context<some RootRegistry>) throws {
         if let mass = try? element.attributeValue(Float.self, for: "mass") {
             self.init(
-                shapes: try ComponentContentBuilder<C>.buildChildren(of: element, with: ShapeResourceContentBuilder.self, in: context),
+                shapes: try _ComponentContentBuilder<C>.buildChildren(of: element, with: ShapeResourceContentBuilder.self, in: context),
                 mass: mass,
                 material: try? PhysicsMaterialResource.generate(from: element.attribute(named: "material"), on: element),
                 mode: (try? element.attributeValue(PhysicsBodyMode.self, for: "mode")) ?? .dynamic
