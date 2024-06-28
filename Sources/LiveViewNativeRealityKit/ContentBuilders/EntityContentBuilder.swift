@@ -13,14 +13,14 @@ import OSLog
 
 private let logger = Logger(subsystem: "LiveViewNativeRealityKit", category: "EntityContentBuilder")
 
-struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegistry>: EntityRegistry {
-    enum TagName: RawRepresentable {
+public struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegistry>: EntityRegistry {
+    public enum TagName: RawRepresentable {
         case builtin(Builtin)
         case custom(Entities.TagName)
         
-        typealias RawValue = String
+        public typealias RawValue = String
         
-        enum Builtin: String {
+        public enum Builtin: String {
             case group = "Group"
             case entity = "Entity"
             case modelEntity = "ModelEntity"
@@ -30,7 +30,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
             case handTrackingProvider = "HandTrackingProvider"
         }
         
-        init?(rawValue: RawValue) {
+        public init?(rawValue: RawValue) {
             if let builtin = Builtin(rawValue: rawValue) {
                 self = .builtin(builtin)
             } else if let custom = Entities.TagName.init(rawValue: rawValue) {
@@ -40,7 +40,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
             }
         }
         
-        var rawValue: RawValue {
+        public var rawValue: RawValue {
             switch self {
             case .builtin(let builtin):
                 builtin.rawValue
@@ -50,7 +50,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
         }
     }
     
-    static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> Content {
+    public static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> Content {
         let entity: Entity
         do {
             switch tag {
@@ -61,7 +61,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
                     return children
                 case .entity:
                     if element.attribute(named: "url") != nil || element.attribute(named: "named") != nil {
-                        entity = AsyncEntity(from: element, in: context)
+                        entity = try AsyncEntity(from: element, in: context)
                     } else {
                         entity = Entity()
                     }
@@ -174,6 +174,13 @@ extension Entity {
         
         if let asyncEntity = self as? AsyncEntity {
             try asyncEntity.updateResolvedEntity(with: element, in: context)
+        }
+        
+        if element.attributeBoolean(for: "generateCollisionShapes") {
+            self.generateCollisionShapes(
+                recursive: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "recursive")),
+                static: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "static"))
+            )
         }
     }
     

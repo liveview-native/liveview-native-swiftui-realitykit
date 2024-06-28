@@ -12,33 +12,91 @@ import LiveViewNative
 final class AsyncEntity: Entity {
     var setupTask: Task<(), Error>? = nil
     
+    static var entityCache = [URL:Entity]()
+    
     init<E: EntityRegistry, C: ComponentRegistry>(
         from element: ElementNode,
         in context: EntityContentBuilder<E, C>.Context<some RootRegistry>
-    ) {
+    ) throws {
         AsyncEntityComponent.registerComponent()
         
         super.init()
         
+        let loadSync = element.attributeBoolean(for: "loadSync")
+        
         if let url = element.attributeValue(for: "url").flatMap({ URL(string: $0, relativeTo: context.url) }) {
-            setupTask = Task { [weak self] in
-                let (fileURL, _) = try await URLSession.shared.download(from: url)
-                let correctedExtensionURL = fileURL.deletingPathExtension().appendingPathExtension(for: .usdz)
-                try FileManager.default.moveItem(at: fileURL, to: correctedExtensionURL)
+            if let cached = Self.entityCache[url] {
+                let entity = cached.clone(recursive: true)
+                entity.components.set(AsyncEntityComponent.remote(url))
+                self.addChild(entity)
+            } else if loadSync {
+                let group = DispatchGroup()
+                group.enter()
                 
-                do {
-                    let entity = try await Entity(contentsOf: correctedExtensionURL)
-                    entity.components.set(AsyncEntityComponent.remote(url))
-                    self?.addChild(entity)
-                    
-                    try self?.updateResolvedEntity(with: element, in: context)
+                var fileURL: Result<URL, Error>!
+                
+                let downloadTask = URLSession.shared.downloadTask(with: url) { result, _, error in
+                    if let result {
+                        fileURL = .success(result)
+                    } else {
+                        fileURL = .failure(error!)
+                    }
+                    group.leave()
                 }
+                downloadTask.resume()
                 
-                try FileManager.default.removeItem(at: correctedExtensionURL)
+                group.wait()
+                
+                switch fileURL! {
+                case .success(let fileURL):
+                    let correctedExtensionURL = fileURL.deletingPathExtension().appendingPathExtension(for: .usdz)
+                    try FileManager.default.moveItem(at: fileURL, to: correctedExtensionURL)
+                    
+                    do {
+                        let entity = try Entity.load(contentsOf: correctedExtensionURL)
+                        Self.entityCache[url] = entity.clone(recursive: true)
+                        entity.components.set(AsyncEntityComponent.remote(url))
+                        self.addChild(entity)
+                        
+                        try self.updateResolvedEntity(with: element, in: context)
+                    } catch {
+                        try FileManager.default.removeItem(at: correctedExtensionURL)
+                        throw error
+                    }
+                    
+                    try FileManager.default.removeItem(at: correctedExtensionURL)
+                case .failure(let error):
+                    throw error
+                }
+            } else {
+                setupTask = Task { [weak self] in
+                    let (fileURL, _) = try await URLSession.shared.download(from: url)
+                    let correctedExtensionURL = fileURL.deletingPathExtension().appendingPathExtension(for: .usdz)
+                    try FileManager.default.moveItem(at: fileURL, to: correctedExtensionURL)
+                    
+                    do {
+                        let entity = try await Entity(contentsOf: correctedExtensionURL)
+                        Self.entityCache[url] = entity.clone(recursive: true)
+                        entity.components.set(AsyncEntityComponent.remote(url))
+                        self?.addChild(entity)
+                        
+                        try self?.updateResolvedEntity(with: element, in: context)
+                    } catch {
+                        try FileManager.default.removeItem(at: correctedExtensionURL)
+                        throw error
+                    }
+                    try FileManager.default.removeItem(at: correctedExtensionURL)
+                }
             }
         } else if let named = element.attributeValue(for: "named") {
-            setupTask = Task { [weak self] in
-                do {
+            if loadSync {
+                let entity = try Entity.load(named: named)
+                entity.components.set(AsyncEntityComponent.named(named))
+                self.addChild(entity)
+                
+                try self.updateResolvedEntity(with: element, in: context)
+            } else {
+                setupTask = Task { [weak self] in
                     let entity = try await Entity(named: named)
                     entity.components.set(AsyncEntityComponent.named(named))
                     self?.addChild(entity)

@@ -14,7 +14,7 @@ public struct CustomizableRealityKitRegistry<
         public static func lookup(_ name: TagName, element: ElementNode) -> some View {
             switch name {
             case .realityView:
-                _RealityView<Root, Entities, ComponentContentBuilder<Components>>()
+                _RealityView<Root, Entities, _ComponentContentBuilder<Components>>()
             }
         }
     }
