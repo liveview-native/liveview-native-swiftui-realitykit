@@ -16,14 +16,28 @@ import OSLog
 final class ElementNodeUpdateSystem<Root: RootRegistry, E: EntityRegistry, C: ComponentRegistry>: System {
     let updateContextQuery = EntityQuery(where: .has(UpdateContextComponent<Root, E, C>.self))
     let elementNodeQuery = EntityQuery(where: .has(ElementNodeComponent.self))
+    let viewAttachmentQuery = EntityQuery(where: .has(ViewAttachmentComponent.self))
     
     init(scene: RealityKit.Scene) {}
     
     func update(context: SceneUpdateContext) {
         var updateContextEntities = context.entities(matching: updateContextQuery, updatingSystemWhen: .rendering).makeIterator()
         guard let updateContextEntity = updateContextEntities.next(),
-              var updateContext = updateContextEntity.components[UpdateContextComponent<Root, E, C>.self],
-              !updateContext.updates.isEmpty,
+              var updateContext = updateContextEntity.components[UpdateContextComponent<Root, E, C>.self]
+        else { return }
+
+        // apply view attachments
+        for entity in context.entities(matching: viewAttachmentQuery, updatingSystemWhen: .rendering) {
+            var attachment = entity.components[ViewAttachmentComponent.self]!
+            guard attachment.resolvedAttachment == nil,
+                  let id = attachment.attachment,
+                  let resolvedAttachment = updateContext.attachments.entity(for: id)
+            else { continue }
+            attachment.resolvedAttachment = resolvedAttachment
+            entity.addChild(resolvedAttachment)
+        }
+        
+        guard !updateContext.updates.isEmpty,
               let document = updateContext.document
         else { return }
         
@@ -56,6 +70,7 @@ struct UpdateContextComponent<Root: RootRegistry, E: EntityRegistry, C: Componen
     }
     let document: Document?
     let context: EntityContentBuilder<E, C>.Context<Root>
+    let attachments: RealityViewAttachments
     
     final class Storage {
         var updates: Set<NodeRef> = []
@@ -92,6 +107,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
         ElementNodeComponent.registerComponent()
         PhoenixClickEventComponent.registerComponent()
         PhysicsBodyChangeEventComponent.registerComponent()
+        ViewAttachmentComponent.registerComponent()
         ElementNodeUpdateSystem<Root, Entities, Components>.registerSystem()
     }
     
@@ -104,10 +120,39 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
         AudioServicesPlaySystemSound(clickSoundID)
     }
     
+    @AttachmentContentBuilder
+    var attachments: some AttachmentContent {
+        let attachments = $liveElement.childNodes
+            .compactMap({ $0.asElement() })
+            .filter({ $0.tag == "Attachment" && $0.attributes.contains(where: { $0.name == "template" && $0.value == "attachments" }) })
+            .compactMap({ (attachment) -> (id: String, element: ElementNode)? in
+                guard let id = attachment.attributeValue(for: "id") else { return nil }
+                return (id: id, element: attachment)
+            })
+        switch attachments.count {
+        case 1:
+            Attachment(id: attachments[0].id) { $liveElement.context.buildChildren(of: attachments[0].element) }
+        case 2:
+            Attachment(id: attachments[0].id) { $liveElement.context.buildChildren(of: attachments[0].element) }
+            Attachment(id: attachments[1].id) { $liveElement.context.buildChildren(of: attachments[1].element) }
+        case 3:
+            Attachment(id: attachments[0].id) { $liveElement.context.buildChildren(of: attachments[0].element) }
+            Attachment(id: attachments[1].id) { $liveElement.context.buildChildren(of: attachments[1].element) }
+            Attachment(id: attachments[2].id) { $liveElement.context.buildChildren(of: attachments[2].element) }
+        default:
+            EmptyAttachmentContent()
+        }
+    }
+    
     var body: some View {
-        RealityView { content in
+        RealityView { content, attachments in
             let updateContext = Entity()
-            updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(storage: self.updateStorage, document: context.document, context: context))
+            updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(
+                storage: self.updateStorage,
+                document: context.document,
+                context: context,
+                attachments: attachments
+            ))
             content.add(updateContext)
             do {
                 for entity in try EntityContentBuilder<Entities, Components>.buildChildren(of: element, in: context) {
@@ -163,7 +208,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                     }
                 }
             ]
-        } update: { content in
+        } update: { content, attachments in
             if self.updateStorage.updates.contains(self.$liveElement.element.id) {
                 guard let element: ElementNode = self.context.document?[self.$liveElement.element.id].asElement()
                 else { return }
@@ -198,6 +243,8 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                     content.remove(child)
                 }
             }
+        } attachments: {
+            attachments
         }
         .onReceive($element) { id in
             self.updateStorage.updates.insert(id)
