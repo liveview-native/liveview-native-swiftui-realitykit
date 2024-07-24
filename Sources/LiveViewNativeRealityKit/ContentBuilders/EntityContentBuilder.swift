@@ -28,6 +28,8 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
             
             case sceneReconstructionProvider = "SceneReconstructionProvider"
             case handTrackingProvider = "HandTrackingProvider"
+            
+            case viewAttachmentEntity = "ViewAttachmentEntity"
         }
         
         init?(rawValue: RawValue) {
@@ -73,6 +75,8 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
                     entity = try SceneReconstructionEntity(from: element, in: context)
                 case .handTrackingProvider:
                     entity = HandTrackingEntity(from: element, in: context)
+                case .viewAttachmentEntity:
+                    entity = try _ViewAttachmentEntity(from: element, in: context)
                 }
             case .custom:
                 guard let customEntity = (try Self.build([element.node], with: Entities.self, in: context)).first
