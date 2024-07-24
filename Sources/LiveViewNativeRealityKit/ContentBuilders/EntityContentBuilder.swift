@@ -181,10 +181,19 @@ extension Entity {
         }
         
         if element.attributeBoolean(for: "generateCollisionShapes") {
-            self.generateCollisionShapes(
-                recursive: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "recursive")),
-                static: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "static"))
-            )
+            if element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "convex")) {
+                // convex mesh collision shapes
+                self.generateConvexCollisionShapes(
+                    recursive: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "recursive")),
+                    static: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "static"))
+                )
+            } else {
+                // simple box collision shapes
+                self.generateCollisionShapes(
+                    recursive: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "recursive")),
+                    static: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "static"))
+                )
+            }
         }
     }
     
@@ -242,6 +251,22 @@ extension Entity {
         // remove children that are no longer in the document
         for child in previousChildren where !child.components.has(AsyncEntityComponent.self) {
             self.removeChild(child)
+        }
+    }
+}
+
+extension Entity {
+    func generateConvexCollisionShapes(
+        recursive: Bool,
+        static isStatic: Bool
+    ) {
+        if let mesh = self.components[ModelComponent.self]?.mesh {
+            self.components.set(CollisionComponent(shapes: [.generateConvex(from: mesh)], isStatic: isStatic))
+        }
+        if recursive {
+            for child in children {
+                child.generateConvexCollisionShapes(recursive: recursive, static: isStatic)
+            }
         }
     }
 }
