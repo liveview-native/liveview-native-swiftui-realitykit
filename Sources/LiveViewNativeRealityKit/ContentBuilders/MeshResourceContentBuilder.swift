@@ -61,6 +61,22 @@ struct MeshResourceContentBuilder: ContentBuilder {
             try! mesh.replace(with: contents)
         }
         
+        if let offset = try? element.attributeValue(SIMD3<Float>.self, for: "offset") {
+            var contents = mesh.contents
+            contents.models = MeshModelCollection(mesh.contents.models.map({
+                var model = $0
+                model.parts = MeshPartCollection(model.parts.map({
+                    var part = $0
+                    part.positions = MeshBuffer(part.positions.map({
+                        $0 + offset
+                    }))
+                    return part
+                }))
+                return model
+            }))
+            try! mesh.replace(with: contents)
+        }
+        
         return [mesh]
     }
     
