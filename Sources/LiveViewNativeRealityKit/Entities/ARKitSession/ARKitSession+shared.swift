@@ -5,6 +5,7 @@
 //  Created by Carson.Katri on 5/30/24.
 //
 
+#if os(visionOS)
 import ARKit
 
 enum SharedARKitSessionStore {
@@ -19,3 +20,4 @@ enum SharedARKitSessionStore {
         }
     }
 }
+#endif
