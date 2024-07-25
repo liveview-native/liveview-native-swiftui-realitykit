@@ -11,21 +11,37 @@ import LiveViewNativeCore
 import RealityKit
 import SwiftUI
 
-extension RealityViewCamera: AttributeDecodable {
-    public init(from attribute: Attribute?, on element: ElementNode) throws {
+struct _RealityViewCamera: AttributeDecodable {
+    let value: RealityViewCamera
+    
+    static var virtual: Self { Self(value: .virtual) }
+    static var worldTracking: Self { Self(value: .worldTracking) }
+    
+    init(value: RealityViewCamera) {
+        self.value = value
+    }
+    
+    init(from attribute: Attribute?, on element: ElementNode) throws {
         guard let value = attribute?.value
         else { throw AttributeDecodingError.missingAttribute(Self.self) }
         
         switch value {
         case "virtual":
-            self = .virtual
+            self.value = .virtual
         case "worldTracking":
-            self = .worldTracking
+            self.value = .worldTracking
         default:
             throw AttributeDecodingError.badValue(Self.self)
         }
     }
 }
 #else
-typealias RealityViewCamera = String
+import LiveViewNative
+import LiveViewNativeCore
+
+/// A stub for compatibility across platforms.
+enum _RealityViewCamera: String, AttributeDecodable {
+    case virtual
+    case worldTracking
+}
 #endif

@@ -147,6 +147,12 @@ extension Entity {
             self.components.remove(InputTargetComponent.self)
         }
         
+        if element.attributeBoolean(for: "cameraTarget") {
+            self.components.set(CameraTargetComponent())
+        } else {
+            self.components.remove(CameraTargetComponent.self)
+        }
+        
         if let modelEntity = self as? ModelEntity {
             try modelEntity.applyModelEntityAttributes(from: element, in: context)
         }

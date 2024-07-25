@@ -17,6 +17,7 @@ final class ElementNodeUpdateSystem<Root: RootRegistry, E: EntityRegistry, C: Co
     let updateContextQuery = EntityQuery(where: .has(UpdateContextComponent<Root, E, C>.self))
     let elementNodeQuery = EntityQuery(where: .has(ElementNodeComponent.self))
     let viewAttachmentQuery = EntityQuery(where: .has(ViewAttachmentComponent.self))
+    let cameraTargetQuery = EntityQuery(where: .has(CameraTargetComponent.self))
     
     init(scene: RealityKit.Scene) {}
     
@@ -27,6 +28,7 @@ final class ElementNodeUpdateSystem<Root: RootRegistry, E: EntityRegistry, C: Co
         else { return }
 
         // apply view attachments
+        #if os(visionOS)
         for entity in context.entities(matching: viewAttachmentQuery, updatingSystemWhen: .rendering) {
             var attachment = entity.components[ViewAttachmentComponent.self]!
             guard attachment.resolvedAttachment == nil,
@@ -36,6 +38,16 @@ final class ElementNodeUpdateSystem<Root: RootRegistry, E: EntityRegistry, C: Co
             attachment.resolvedAttachment = resolvedAttachment
             entity.addChild(resolvedAttachment)
         }
+        #endif
+        
+        // update cameraTarget entity
+        #if os(iOS) || os(macOS)
+        var cameraTargetEntities = context.entities(matching: cameraTargetQuery, updatingSystemWhen: .rendering).makeIterator()
+        let newCameraTarget = cameraTargetEntities.next()
+        if newCameraTarget != updateContext.storage.cameraTarget {
+            updateContext.storage.cameraTarget = newCameraTarget
+        }
+        #endif
         
         guard !updateContext.updates.isEmpty,
               let document = updateContext.document
@@ -70,10 +82,14 @@ struct UpdateContextComponent<Root: RootRegistry, E: EntityRegistry, C: Componen
     }
     let document: Document?
     let context: EntityContentBuilder<E, C>.Context<Root>
+    #if os(visionOS)
     let attachments: RealityViewAttachments
+    #endif
     
+    @Observable
     final class Storage {
         var updates: Set<NodeRef> = []
+        var cameraTarget: Entity?
     }
 }
 
@@ -95,7 +111,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
     
     private var audibleClicks: Bool = false
     
-    private var camera: RealityViewCamera = .worldTracking
+    private var camera: _RealityViewCamera = .worldTracking
     
     @LiveElementIgnored
     @State
@@ -110,6 +126,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
         PhoenixClickEventComponent.registerComponent()
         PhysicsBodyChangeEventComponent.registerComponent()
         ViewAttachmentComponent.registerComponent()
+        CameraTargetComponent.registerComponent()
         ElementNodeUpdateSystem<Root, Entities, Components>.registerSystem()
     }
     
@@ -122,6 +139,7 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
         AudioServicesPlaySystemSound(clickSoundID)
     }
     
+    #if os(visionOS)
     @AttachmentContentBuilder
     var attachments: some AttachmentContent {
         let attachments = $liveElement.childNodes
@@ -145,107 +163,25 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
             EmptyAttachmentContent()
         }
     }
+    #endif
     
     var body: some View {
-        RealityView { content, attachments in
-            #if os(iOS) || os(macOS)
-            content.camera = self.camera
+        Group {
+            #if os(visionOS)
+            RealityView { content, attachments in
+                make(content: &content, attachments: attachments)
+            } update: { content, attachments in
+                update(content: &content)
+            } attachments: {
+                attachments
+            }
+            #else
+            RealityView { content in
+                make(content: &content, attachments: Optional<Never>.none)
+            } update: { content in
+                update(content: &content)
+            }
             #endif
-            
-            self.subscriptions = [
-                content.subscribe(to: CollisionEvents.Began.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
-                    for entity in [collision.entityA, collision.entityB] {
-                        guard let event = entity.components[PhysicsBodyChangeEventComponent.self]?.event
-                        else { continue }
-                        
-                        let payload: [String:Any] = [
-                            "event": "began",
-                            "position": [collision.position.x, collision.position.y, collision.position.z],
-                            "impulse": collision.impulse,
-                            "impulseDirection": [collision.impulseDirection.x, collision.impulseDirection.y, collision.impulseDirection.z],
-                            "penetrationDistance": collision.penetrationDistance,
-                            "entityA": collision.entityA.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any,
-                            "entityB": collision.entityB.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any
-                        ]
-                        
-                        Task {
-                            try await liveContext.coordinator.pushEvent(
-                                type: "click",
-                                event: event,
-                                value: payload
-                            )
-                        }
-                    }
-                },
-                content.subscribe(to: CollisionEvents.Ended.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
-                    for entity in [collision.entityA, collision.entityB] {
-                        guard let event = entity.components[PhysicsBodyChangeEventComponent.self]?.event
-                        else { continue }
-                        
-                        let payload: [String:Any] = [
-                            "event": "ended",
-                            "entityA": collision.entityA.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any,
-                            "entityB": collision.entityB.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any
-                        ]
-                        
-                        Task {
-                            try await liveContext.coordinator.pushEvent(
-                                type: "click",
-                                event: event,
-                                value: payload
-                            )
-                        }
-                    }
-                }
-            ]
-            
-            let updateContext = Entity()
-            updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(storage: self.updateStorage, document: context.document, context: context, attachments: attachments))
-            content.add(updateContext)
-            do {
-                for entity in try EntityContentBuilder<Entities, Components>.buildChildren(of: element, in: context) {
-                    content.add(entity)
-                }
-            } catch {
-                logger.error("Entities failed to build with: \(error)")
-            }
-        } update: { content, attachments in
-            if self.updateStorage.updates.contains(self.$liveElement.element.id) {
-                guard let element: ElementNode = self.context.document?[self.$liveElement.element.id].asElement()
-                else { return }
-                
-                var previousChildren = Array(content.entities.filter({ !$0.components.has(UpdateContextComponent<Root, Entities, Components>.self) }))
-                for childNode in element.children() {
-                    guard let childElement = childNode.asElement()
-                    else { continue }
-                    if let existingChildIndex = content.entities.firstIndex(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id }) {
-                        // update children that existed previously
-                        do {
-                            let existingChild = content.entities[existingChildIndex]
-                            try existingChild.applyAttributes(from: childElement, in: context)
-                            try existingChild.applyChildren(from: childElement, in: context)
-                            previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
-                        } catch {
-                            logger.error("Entity \(childElement.tag) failed to update with: \(error)")
-                        }
-                    } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
-                        // add new children
-                        do {
-                            for child in try EntityContentBuilder<Entities, Components>.build([childNode], in: context) {
-                                content.add(child)
-                            }
-                        } catch {
-                            logger.error("Entities failed to build with: \(error)")
-                        }
-                    }
-                }
-                // remove children that are no longer in the document
-                for child in previousChildren where !child.components.has(AsyncEntityComponent.self) {
-                    content.remove(child)
-                }
-            }
-        } attachments: {
-            attachments
         }
         .onReceive($element) { id in
             self.updateStorage.updates.insert(id)
@@ -285,6 +221,118 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                 }
         )
     }
+    
+    #if os(visionOS)
+    typealias _RealityViewContent = RealityViewContent
+    #else
+    typealias _RealityViewContent = RealityViewCameraContent
+    #endif
+    
+    func make(content: inout _RealityViewContent, attachments: Any) {
+        #if os(iOS) || os(macOS)
+        content.camera = self.camera.value
+        #endif
+
+        self.subscriptions = [
+            content.subscribe(to: CollisionEvents.Began.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
+                for entity in [collision.entityA, collision.entityB] {
+                    guard let event = entity.components[PhysicsBodyChangeEventComponent.self]?.event
+                    else { continue }
+                    
+                    let payload: [String:Any] = [
+                        "event": "began",
+                        "position": [collision.position.x, collision.position.y, collision.position.z],
+                        "impulse": collision.impulse,
+                        "impulseDirection": [collision.impulseDirection.x, collision.impulseDirection.y, collision.impulseDirection.z],
+                        "penetrationDistance": collision.penetrationDistance,
+                        "entityA": collision.entityA.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any,
+                        "entityB": collision.entityB.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any
+                    ]
+                    
+                    Task {
+                        try await liveContext.coordinator.pushEvent(
+                            type: "click",
+                            event: event,
+                            value: payload
+                        )
+                    }
+                }
+            },
+            content.subscribe(to: CollisionEvents.Ended.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
+                for entity in [collision.entityA, collision.entityB] {
+                    guard let event = entity.components[PhysicsBodyChangeEventComponent.self]?.event
+                    else { continue }
+                    
+                    let payload: [String:Any] = [
+                        "event": "ended",
+                        "entityA": collision.entityA.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any,
+                        "entityB": collision.entityB.components[ElementNodeComponent.self]?.element.attributeValue(for: "id") as Any
+                    ]
+                    
+                    Task {
+                        try await liveContext.coordinator.pushEvent(
+                            type: "click",
+                            event: event,
+                            value: payload
+                        )
+                    }
+                }
+            }
+        ]
+
+        let updateContext = Entity()
+        #if os(visionOS)
+        updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(storage: self.updateStorage, document: context.document, context: context, attachments: attachments as! RealityViewAttachments))
+        #else
+        updateContext.components.set(UpdateContextComponent<Root, Entities, Components>(storage: self.updateStorage, document: context.document, context: context))
+        #endif
+        content.add(updateContext)
+        do {
+            for entity in try EntityContentBuilder<Entities, Components>.buildChildren(of: element, in: context) {
+                content.add(entity)
+            }
+        } catch {
+            logger.error("Entities failed to build with: \(error)")
+        }
+    }
+    
+    func update(content: inout _RealityViewContent) {
+        if self.updateStorage.updates.contains(self.$liveElement.element.id) {
+            guard let element: ElementNode = self.context.document?[self.$liveElement.element.id].asElement()
+            else { return }
+            
+            var previousChildren = Array(content.entities.filter({ !$0.components.has(UpdateContextComponent<Root, Entities, Components>.self) }))
+            for childNode in element.children() {
+                guard let childElement = childNode.asElement()
+                else { continue }
+                if let existingChildIndex = content.entities.firstIndex(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id }) {
+                    // update children that existed previously
+                    do {
+                        let existingChild = content.entities[existingChildIndex]
+                        try existingChild.applyAttributes(from: childElement, in: context)
+                        try existingChild.applyChildren(from: childElement, in: context)
+                        previousChildren.removeAll(where: { $0.components[ElementNodeComponent.self]?.element.id == childElement.id })
+                    } catch {
+                        logger.error("Entity \(childElement.tag) failed to update with: \(error)")
+                    }
+                } else if !childElement.attributes.contains(where: { $0.name.namespace == nil && $0.name.name == "template" }) {
+                    // add new children
+                    do {
+                        for child in try EntityContentBuilder<Entities, Components>.build([childNode], in: context) {
+                            content.add(child)
+                        }
+                    } catch {
+                        logger.error("Entities failed to build with: \(error)")
+                    }
+                }
+            }
+            // remove children that are no longer in the document
+            for child in previousChildren where !child.components.has(AsyncEntityComponent.self) {
+                content.remove(child)
+            }
+        }
+        content.cameraTarget = self.updateStorage.cameraTarget
+    }
 }
 
 struct ElementNodeComponent: Component {
@@ -302,3 +350,5 @@ struct PhoenixClickEventComponent: Component {
 struct PhysicsBodyChangeEventComponent: Component {
     let event: String
 }
+
+struct CameraTargetComponent: Component {}
