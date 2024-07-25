@@ -95,6 +95,8 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
     
     private var audibleClicks: Bool = false
     
+    private var camera: RealityViewCamera = .worldTracking
+    
     @LiveElementIgnored
     @State
     private var updateStorage = UpdateContextComponent<Root, Entities, Components>.Storage()
@@ -146,6 +148,10 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
     
     var body: some View {
         RealityView { content, attachments in
+            #if os(iOS) || os(macOS)
+            content.camera = self.camera
+            #endif
+            
             self.subscriptions = [
                 content.subscribe(to: CollisionEvents.Began.self, componentType: PhysicsBodyChangeEventComponent.self) { collision in
                     for entity in [collision.entityA, collision.entityB] {
@@ -259,7 +265,11 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                             partialResult[String(attr.name.name.dropFirst(prefix.count))] = attr.value
                         }
                     
+                    #if os(visionOS)
                     let tapLocation = value.convert(value.location3D, from: .local, to: .scene)
+                    #else
+                    let tapLocation = value.hitTest(point: value.location, in: .local).first?.position ?? value.entity.position
+                    #endif
                     
                     payload["_location"] = [tapLocation.x, tapLocation.y, tapLocation.z]
                     

@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "LiveViewNativeRealityKit",
+    platforms: [.visionOS(.v1), .iOS("18.0")],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(

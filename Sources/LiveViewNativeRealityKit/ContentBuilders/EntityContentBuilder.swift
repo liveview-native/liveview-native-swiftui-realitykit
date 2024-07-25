@@ -26,10 +26,12 @@ public struct EntityContentBuilder<Entities: EntityRegistry, Components: Compone
             case modelEntity = "ModelEntity"
             case anchorEntity = "AnchorEntity"
             
+            #if os(visionOS)
             case sceneReconstructionProvider = "SceneReconstructionProvider"
             case handTrackingProvider = "HandTrackingProvider"
             
             case viewAttachmentEntity = "ViewAttachmentEntity"
+            #endif
         }
         
         public init?(rawValue: RawValue) {
@@ -71,12 +73,14 @@ public struct EntityContentBuilder<Entities: EntityRegistry, Components: Compone
                     entity = try ModelEntity(from: element, in: context)
                 case .anchorEntity:
                     entity = try AnchorEntity(from: element, in: context)
+                #if os(visionOS)
                 case .sceneReconstructionProvider:
                     entity = try SceneReconstructionEntity(from: element, in: context)
                 case .handTrackingProvider:
                     entity = HandTrackingEntity(from: element, in: context)
                 case .viewAttachmentEntity:
                     entity = try _ViewAttachmentEntity(from: element, in: context)
+                #endif
                 }
             case .custom:
                 guard let customEntity = (try Self.build([element.node], with: Entities.self, in: context)).first
@@ -217,7 +221,9 @@ extension Entity {
             self.components.set(elementNodeComponent)
         }
         
+        #if os(visionOS)
         guard !(self is SceneReconstructionEntity) else { return } // scene reconstruction creates its own child meshes
+        #endif
         
         /// The list of children previously part of this element.
         ///
