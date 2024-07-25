@@ -12,12 +12,12 @@ import OSLog
 
 private let logger = Logger(subsystem: "LiveViewNativeRealityKit", category: "ComponentContentBuilder")
 
-struct ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry {
-    enum TagName: RawRepresentable {
+public struct _ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry {
+    public enum TagName: RawRepresentable {
         case builtin(Builtin)
         case custom(Components.TagName)
         
-        enum Builtin: String {
+        public enum Builtin: String {
             case group = "Group"
             
             case anchoringComponent = "AnchoringComponent"
@@ -30,9 +30,9 @@ struct ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry
             case hoverEffectComponent = "HoverEffectComponent"
         }
         
-        typealias RawValue = String
+        public typealias RawValue = String
         
-        init?(rawValue: String) {
+        public init?(rawValue: String) {
             if let builtin = Builtin.init(rawValue: rawValue) {
                 self = .builtin(builtin)
             } else if let custom = Components.TagName.init(rawValue: rawValue) {
@@ -42,7 +42,7 @@ struct ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry
             }
         }
         
-        var rawValue: RawValue {
+        public var rawValue: RawValue {
             switch self {
             case .builtin(let builtin):
                 builtin.rawValue
@@ -52,7 +52,7 @@ struct ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry
         }
     }
     
-    static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> [any Component] {
+    public static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> [any Component] {
         do {
             switch tag {
             case let .builtin(builtin):
@@ -75,7 +75,7 @@ struct ComponentContentBuilder<Components: ComponentRegistry>: ComponentRegistry
                 case .collisionComponent:
                     return [try CollisionComponent(from: element, in: context)]
                 case .hoverEffectComponent:
-                    return [HoverEffectComponent()]
+                    return [try HoverEffectComponent(from: element, in: context)]
                 }
             case .custom:
                 return try Self.build([element.node], with: Components.self, in: context)

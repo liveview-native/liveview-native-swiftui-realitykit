@@ -13,14 +13,14 @@ import OSLog
 
 private let logger = Logger(subsystem: "LiveViewNativeRealityKit", category: "EntityContentBuilder")
 
-struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegistry>: EntityRegistry {
-    enum TagName: RawRepresentable {
+public struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegistry>: EntityRegistry {
+    public enum TagName: RawRepresentable {
         case builtin(Builtin)
         case custom(Entities.TagName)
         
-        typealias RawValue = String
+        public typealias RawValue = String
         
-        enum Builtin: String {
+        public enum Builtin: String {
             case group = "Group"
             case entity = "Entity"
             case modelEntity = "ModelEntity"
@@ -32,7 +32,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
             case viewAttachmentEntity = "ViewAttachmentEntity"
         }
         
-        init?(rawValue: RawValue) {
+        public init?(rawValue: RawValue) {
             if let builtin = Builtin(rawValue: rawValue) {
                 self = .builtin(builtin)
             } else if let custom = Entities.TagName.init(rawValue: rawValue) {
@@ -42,7 +42,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
             }
         }
         
-        var rawValue: RawValue {
+        public var rawValue: RawValue {
             switch self {
             case .builtin(let builtin):
                 builtin.rawValue
@@ -52,7 +52,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
         }
     }
     
-    static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> Content {
+    public static func lookup<R: RootRegistry>(_ tag: TagName, element: LiveViewNative.ElementNode, context: Context<R>) -> Content {
         let entity: Entity
         do {
             switch tag {
@@ -63,7 +63,7 @@ struct EntityContentBuilder<Entities: EntityRegistry, Components: ComponentRegis
                     return children
                 case .entity:
                     if element.attribute(named: "url") != nil || element.attribute(named: "named") != nil {
-                        entity = AsyncEntity(from: element, in: context)
+                        entity = try AsyncEntity(from: element, in: context)
                     } else {
                         entity = Entity()
                     }
@@ -179,6 +179,22 @@ extension Entity {
         if let asyncEntity = self as? AsyncEntity {
             try asyncEntity.updateResolvedEntity(with: element, in: context)
         }
+        
+        if element.attributeBoolean(for: "generateCollisionShapes") {
+            if element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "convex")) {
+                // convex mesh collision shapes
+                self.generateConvexCollisionShapes(
+                    recursive: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "recursive")),
+                    static: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "static"))
+                )
+            } else {
+                // simple box collision shapes
+                self.generateCollisionShapes(
+                    recursive: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "recursive")),
+                    static: element.attributeBoolean(for: .init(namespace: "generateCollisionShapes", name: "static"))
+                )
+            }
+        }
     }
     
     func applyChildren<R: RootRegistry, E: EntityRegistry, C: ComponentRegistry>(
@@ -235,6 +251,22 @@ extension Entity {
         // remove children that are no longer in the document
         for child in previousChildren where !child.components.has(AsyncEntityComponent.self) {
             self.removeChild(child)
+        }
+    }
+}
+
+extension Entity {
+    func generateConvexCollisionShapes(
+        recursive: Bool,
+        static isStatic: Bool
+    ) {
+        if let mesh = self.components[ModelComponent.self]?.mesh {
+            self.components.set(CollisionComponent(shapes: [.generateConvex(from: mesh)], isStatic: isStatic))
+        }
+        if recursive {
+            for child in children {
+                child.generateConvexCollisionShapes(recursive: recursive, static: isStatic)
+            }
         }
     }
 }

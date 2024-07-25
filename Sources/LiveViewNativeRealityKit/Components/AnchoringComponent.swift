@@ -10,7 +10,7 @@ import LiveViewNativeCore
 import RealityKit
 
 extension AnchoringComponent {
-    init(from element: ElementNode, in context: ComponentContentBuilder<some ComponentRegistry>.Context<some RootRegistry>) throws {
+    init(from element: ElementNode, in context: _ComponentContentBuilder<some ComponentRegistry>.Context<some RootRegistry>) throws {
         let target = try element.attributeValue(AnchoringComponent.Target.self, for: "target")
         if let trackingMode = try? element.attributeValue(AnchoringComponent.TrackingMode.self, for: "trackingMode") {
             self.init(target, trackingMode: trackingMode)
