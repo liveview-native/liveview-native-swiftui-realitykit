@@ -331,7 +331,9 @@ struct _RealityView<Root: RootRegistry, Entities: EntityRegistry, Components: Co
                 content.remove(child)
             }
         }
+        #if os(iOS)
         content.cameraTarget = self.updateStorage.cameraTarget
+        #endif
     }
 }
 

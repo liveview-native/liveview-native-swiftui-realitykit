@@ -26,12 +26,10 @@ public struct EntityContentBuilder<Entities: EntityRegistry, Components: Compone
             case modelEntity = "ModelEntity"
             case anchorEntity = "AnchorEntity"
             
-            #if os(visionOS)
             case sceneReconstructionProvider = "SceneReconstructionProvider"
             case handTrackingProvider = "HandTrackingProvider"
             
             case viewAttachmentEntity = "ViewAttachmentEntity"
-            #endif
         }
         
         public init?(rawValue: RawValue) {
@@ -73,14 +71,24 @@ public struct EntityContentBuilder<Entities: EntityRegistry, Components: Compone
                     entity = try ModelEntity(from: element, in: context)
                 case .anchorEntity:
                     entity = try AnchorEntity(from: element, in: context)
-                #if os(visionOS)
                 case .sceneReconstructionProvider:
+                    #if os(visionOS)
                     entity = try SceneReconstructionEntity(from: element, in: context)
+                    #else
+                    entity = Entity()
+                    #endif
                 case .handTrackingProvider:
+                    #if os(visionOS)
                     entity = HandTrackingEntity(from: element, in: context)
+                    #else
+                    entity = Entity()
+                    #endif
                 case .viewAttachmentEntity:
+                    #if os(visionOS)
                     entity = try _ViewAttachmentEntity(from: element, in: context)
-                #endif
+                    #else
+                    entity = Entity()
+                    #endif
                 }
             case .custom:
                 guard let customEntity = (try Self.build([element.node], with: Entities.self, in: context)).first
