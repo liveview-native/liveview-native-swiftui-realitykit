@@ -5,6 +5,7 @@
 //  Created by Carson Katri on 5/23/24.
 //
 
+#if os(visionOS)
 import LiveViewNative
 import ARKit
 import RealityKit
@@ -128,3 +129,4 @@ extension GeometrySource {
         return asArray(ofType: (T, T, T).self).map { .init($0.0, $0.1, $0.2) }
     }
 }
+#endif

@@ -40,6 +40,7 @@ extension AnchoringComponent.Target: AttributeDecodable {
         guard let value = attribute?.value
         else { throw AttributeDecodingError.missingAttribute(Self.self) }
         switch value {
+        #if os(visionOS)
         case "hand":
             self = .hand(
                 try element.attributeValue(Chirality.self, for: "chirality"),
@@ -47,6 +48,7 @@ extension AnchoringComponent.Target: AttributeDecodable {
             )
         case "head":
             self = .head
+        #endif
         case "image":
             self = .image(
                 group: try element.attributeValue(String.self, for: "group"),
@@ -64,6 +66,7 @@ extension AnchoringComponent.Target: AttributeDecodable {
     }
 }
 
+#if os(visionOS)
 extension AnchoringComponent.Target.Chirality: AttributeDecodable {
     public init(from attribute: Attribute?, on element: ElementNode) throws {
         guard let value = attribute?.value
@@ -99,6 +102,7 @@ extension AnchoringComponent.Target.HandLocation: AttributeDecodable {
         }
     }
 }
+#endif
 
 extension AnchoringComponent.Target.Alignment: AttributeDecodable {
     public init(from attribute: Attribute?, on element: ElementNode) throws {

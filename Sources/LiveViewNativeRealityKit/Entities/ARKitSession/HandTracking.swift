@@ -5,6 +5,7 @@
 //  Created by Carson Katri on 5/23/24.
 //
 
+#if os(visionOS)
 import LiveViewNative
 import LiveViewNativeCore
 import ARKit
@@ -152,3 +153,4 @@ class HandTrackingEntity: Entity {
         session.stop()
     }
 }
+#endif

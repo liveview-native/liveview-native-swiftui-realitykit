@@ -72,11 +72,23 @@ public struct EntityContentBuilder<Entities: EntityRegistry, Components: Compone
                 case .anchorEntity:
                     entity = try AnchorEntity(from: element, in: context)
                 case .sceneReconstructionProvider:
+                    #if os(visionOS)
                     entity = try SceneReconstructionEntity(from: element, in: context)
+                    #else
+                    entity = Entity()
+                    #endif
                 case .handTrackingProvider:
+                    #if os(visionOS)
                     entity = HandTrackingEntity(from: element, in: context)
+                    #else
+                    entity = Entity()
+                    #endif
                 case .viewAttachmentEntity:
+                    #if os(visionOS)
                     entity = try _ViewAttachmentEntity(from: element, in: context)
+                    #else
+                    entity = Entity()
+                    #endif
                 }
             case .custom:
                 guard let customEntity = (try Self.build([element.node], with: Entities.self, in: context)).first
@@ -141,6 +153,12 @@ extension Entity {
         } else {
             self.components.remove(PhoenixClickEventComponent.self)
             self.components.remove(InputTargetComponent.self)
+        }
+        
+        if element.attributeBoolean(for: "cameraTarget") {
+            self.components.set(CameraTargetComponent())
+        } else {
+            self.components.remove(CameraTargetComponent.self)
         }
         
         if let modelEntity = self as? ModelEntity {
@@ -217,7 +235,9 @@ extension Entity {
             self.components.set(elementNodeComponent)
         }
         
+        #if os(visionOS)
         guard !(self is SceneReconstructionEntity) else { return } // scene reconstruction creates its own child meshes
+        #endif
         
         /// The list of children previously part of this element.
         ///
